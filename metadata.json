@@ -1,0 +1,6 @@
+{
+  "name": "SuperShare",
+  "description": "High-speed offline multimedia file sharing via Wi-Fi Direct P2P and 64KB chunked stream buffer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
