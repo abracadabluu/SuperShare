@@ -64,6 +64,8 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.allowFileAccess = true
         settings.allowContentAccess = true
+        settings.allowFileAccessFromFileURLs = true
+        settings.allowUniversalAccessFromFileURLs = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
