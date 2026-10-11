@@ -25,6 +25,7 @@ export async function generateAndroidProjectZip(): Promise<Blob> {
   zip.file('build.gradle.kts', ROOT_BUILD_GRADLE_KTS);
   zip.file('settings.gradle.kts', SETTINGS_GRADLE_KTS);
   zip.file('.gitignore', `*.iml\n.gradle\n/local.properties\n/.idea/\n.DS_Store\n/build\n/captures\n.externalNativeBuild\n.cxx\nlocal.properties\n`);
+  zip.file('gradle.properties', `android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8\n`);
 
   // 3. Gradle wrapper & Version Catalog
   zip.file('gradle/wrapper/gradle-wrapper.properties', GRADLE_WRAPPER_PROPERTIES);
