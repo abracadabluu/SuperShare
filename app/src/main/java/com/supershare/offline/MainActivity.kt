@@ -207,15 +207,62 @@ class MainActivity : AppCompatActivity() {
         @SuppressLint("MissingPermission")
         @JavascriptInterface
         fun discoverRealPeers() {
-            wifiP2pManager?.discoverPeers(wifiP2pChannel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    // Discovery initiated
+            runOnUiThread {
+                val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                if (wifiManager?.isWifiEnabled != true) {
+                    showToast("Please turn ON Wi-Fi for Wi-Fi Direct scanning!")
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+                    } catch (_: Exception) {}
+                    return@runOnUiThread
                 }
-                override fun onFailure(reason: Int) {
-                    val jsCall = "javascript:if(window.onNativePeersError) { window.onNativePeersError(${reason}); }"
-                    webView.post { webView.evaluateJavascript(jsCall, null) }
+
+                // Check Runtime Permissions
+                val hasLocation = ContextCompat.checkSelfPermission(
+                    this@MainActivity,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                val hasNearby = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.NEARBY_WIFI_DEVICES
+                    ) == PackageManager.PERMISSION_GRANTED
+                } else true
+
+                if (!hasLocation || !hasNearby) {
+                    showToast("Permission required: Grant Location / Nearby Devices to scan peers.")
+                    checkPermissionsSafely()
+                    return@runOnUiThread
                 }
-            })
+
+                showToast("Scanning nearby SuperShare devices...")
+
+                wifiP2pManager?.discoverPeers(wifiP2pChannel, object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        showToast("Wi-Fi Direct scanner active. Searching for peers...")
+                    }
+
+                    override fun onFailure(reason: Int) {
+                        val message = when (reason) {
+                            WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct is not supported on this device."
+                            WifiP2pManager.BUSY -> "Wi-Fi Direct is busy. Retrying in a moment..."
+                            else -> "Wi-Fi Direct scan error (code $reason). Please toggle Wi-Fi."
+                        }
+                        showToast(message)
+
+                        val jsCall = "javascript:if(window.onNativePeersError) { window.onNativePeersError(${reason}, '${message}'); }"
+                        webView.post { webView.evaluateJavascript(jsCall, null) }
+
+                        // If busy, retry once automatically after 2 seconds
+                        if (reason == WifiP2pManager.BUSY) {
+                            webView.postDelayed({
+                                wifiP2pManager?.discoverPeers(wifiP2pChannel, null)
+                            }, 2000)
+                        }
+                    }
+                })
+            }
         }
 
         @SuppressLint("MissingPermission")
@@ -287,11 +334,12 @@ class MainActivity : AppCompatActivity() {
         try {
             val permissions = mutableListOf<String>()
             permissions.add(Manifest.permission.CAMERA)
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
                 permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
             permissions.add(Manifest.permission.WAKE_LOCK)
 

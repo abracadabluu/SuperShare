@@ -57,9 +57,11 @@ export const SendModal: React.FC<SendModalProps> = ({
       }
     };
 
-    (window as any).onNativePeersError = (reason: number) => {
+    (window as any).onNativePeersError = (reason: number, message?: string) => {
       setIsScanningNearby(false);
-      setScanStatusMessage(`Wi-Fi Direct scan failed (code: ${reason}). Make sure Wi-Fi is turned on.`);
+      setScanStatusMessage(
+        message || `Wi-Fi Direct scan failed (code: ${reason}). Make sure Wi-Fi & Location permissions are granted.`
+      );
     };
 
     (window as any).onNativeP2pConnected = (info: any) => {
@@ -110,7 +112,6 @@ export const SendModal: React.FC<SendModalProps> = ({
         setConnectedPeerInfo(target);
         setIsPeerConnected(true);
       } else {
-        // Fallback generic peer
         const target: PeerConnectionTarget = {
           ip: '192.168.49.1',
           port: 8888,
@@ -148,17 +149,31 @@ export const SendModal: React.FC<SendModalProps> = ({
   const handleDiscoverPeers = () => {
     setIsScanningNearby(true);
     setDiscoveredDevices([]);
-    setScanStatusMessage(null);
+    setScanStatusMessage('Scanning nearby devices over Wi-Fi Direct... Please wait.');
 
     // Call real Android native WifiP2pManager if inside APK
     if (typeof (window as any).AndroidBridge?.discoverRealPeers === 'function') {
       (window as any).AndroidBridge.discoverRealPeers();
+
+      // Fallback timeout in case discovery takes longer
+      setTimeout(() => {
+        setIsScanningNearby((prev) => {
+          if (prev) {
+            setScanStatusMessage((currentMsg) =>
+              currentMsg?.includes('Scanning')
+                ? 'Scan complete. If no device appeared, ensure Receiver has tapped RECEIVE or scan their QR Code.'
+                : currentMsg
+            );
+            return false;
+          }
+          return prev;
+        });
+      }, 8000);
     } else {
-      // In web browser without native bridge: inform user
       setTimeout(() => {
         setIsScanningNearby(false);
-        setScanStatusMessage('Use "Scan Receiver QR Code" to pair devices directly.');
-      }, 1000);
+        setScanStatusMessage('Native Wi-Fi Direct is active in Android APK. Use "Scan Receiver QR Code" for instant pairing.');
+      }, 1500);
     }
   };
 

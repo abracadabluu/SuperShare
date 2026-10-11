@@ -16,12 +16,11 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <!-- Wi-Fi Direct on Android 13+ (API 33+) -->
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="tiramisu" />
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" tools:targetApi="tiramisu" />
 
-    <!-- Location for P2P Discovery on older Android versions -->
+    <!-- Location for P2P Discovery on Android 10-14 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- WakeLock & Foreground Service -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
