@@ -90,6 +90,14 @@ class SuperShareReceiverService : Service() {
                 val fileName = inputStream.readUTF()
                 val totalFileSize = inputStream.readLong()
 
+                // Notify UI that incoming stream has started
+                sendBroadcast(Intent("com.supershare.offline.STREAM_UPDATE").apply {
+                    putExtra("STATUS", "started")
+                    putExtra("FILE_NAME", fileName)
+                    putExtra("FILE_SIZE", totalFileSize)
+                    putExtra("BYTES_RECEIVED", 0L)
+                })
+
                 val downloadDir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                     "SuperShare"
@@ -102,6 +110,7 @@ class SuperShareReceiverService : Service() {
                 val buffer = ByteArray(BUFFER_SIZE)
                 var bytesRead = 0
                 var totalBytesReceived: Long = 0
+                var lastBroadcastTime = System.currentTimeMillis()
 
                 while (totalBytesReceived < totalFileSize) {
                     val toRead = Math.min(BUFFER_SIZE.toLong(), totalFileSize - totalBytesReceived).toInt()
@@ -109,11 +118,34 @@ class SuperShareReceiverService : Service() {
                     if (bytesRead == -1) break
                     fileOutputStream.write(buffer, 0, bytesRead)
                     totalBytesReceived += bytesRead
+
+                    val now = System.currentTimeMillis()
+                    if (now - lastBroadcastTime > 200 || totalBytesReceived == totalFileSize) {
+                        lastBroadcastTime = now
+                        sendBroadcast(Intent("com.supershare.offline.STREAM_UPDATE").apply {
+                            putExtra("STATUS", "progress")
+                            putExtra("FILE_NAME", fileName)
+                            putExtra("FILE_SIZE", totalFileSize)
+                            putExtra("BYTES_RECEIVED", totalBytesReceived)
+                        })
+                    }
                 }
 
                 fileOutputStream.flush()
+
+                sendBroadcast(Intent("com.supershare.offline.STREAM_UPDATE").apply {
+                    putExtra("STATUS", "completed")
+                    putExtra("FILE_NAME", fileName)
+                    putExtra("FILE_SIZE", totalFileSize)
+                    putExtra("BYTES_RECEIVED", totalBytesReceived)
+                    putExtra("FILE_PATH", targetFile.absolutePath)
+                })
             } catch (e: Exception) {
                 e.printStackTrace()
+                sendBroadcast(Intent("com.supershare.offline.STREAM_UPDATE").apply {
+                    putExtra("STATUS", "error")
+                    putExtra("ERROR", e.message ?: "Transfer failed")
+                })
             } finally {
                 try {
                     fileOutputStream?.close()

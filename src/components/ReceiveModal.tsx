@@ -31,8 +31,10 @@ export const ReceiveModal: React.FC<ReceiveModalProps> = ({
       }
       setLocalIp(ip);
 
-      // 2. Start Android background receiver socket service if inside APK
-      if (typeof (window as any).AndroidBridge?.startReceiveService === 'function') {
+      // 2. Start Android background receiver socket service and Wi-Fi Direct Group
+      if (typeof (window as any).AndroidBridge?.startP2pReceiverMode === 'function') {
+        (window as any).AndroidBridge.startP2pReceiverMode(tcpPort);
+      } else if (typeof (window as any).AndroidBridge?.startReceiveService === 'function') {
         (window as any).AndroidBridge.startReceiveService(tcpPort);
       }
 

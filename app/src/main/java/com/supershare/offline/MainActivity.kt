@@ -28,7 +28,11 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.supershare.offline.sender.SuperShareSender
 import com.supershare.offline.service.SuperShareReceiverService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.Inet4Address
@@ -39,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var lastSelectedFileUri: Uri? = null
 
     private var wifiP2pManager: WifiP2pManager? = null
     private var wifiP2pChannel: WifiP2pManager.Channel? = null
@@ -48,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
+            lastSelectedFileUri = uris[0]
             fileUploadCallback?.onReceiveValue(uris.toTypedArray())
         } else {
             fileUploadCallback?.onReceiveValue(null)
@@ -73,7 +79,6 @@ class MainActivity : AppCompatActivity() {
                             jsonArray.put(obj)
                         }
 
-                        // Send real discovered devices to WebView
                         val jsCall = "javascript:if(window.onNativePeersFound) { window.onNativePeersFound(${jsonArray}); }"
                         webView.post { webView.evaluateJavascript(jsCall, null) }
                     }
@@ -88,6 +93,27 @@ class MainActivity : AppCompatActivity() {
                         val jsCall = "javascript:if(window.onNativeP2pConnected) { window.onNativeP2pConnected(${obj}); }"
                         webView.post { webView.evaluateJavascript(jsCall, null) }
                     }
+                }
+                "com.supershare.offline.STREAM_UPDATE" -> {
+                    val status = intent.getStringExtra("STATUS") ?: "progress"
+                    val fileName = intent.getStringExtra("FILE_NAME") ?: ""
+                    val fileSize = intent.getLongExtra("FILE_SIZE", 0L)
+                    val bytesReceived = intent.getLongExtra("BYTES_RECEIVED", 0L)
+                    val filePath = intent.getStringExtra("FILE_PATH") ?: ""
+                    val error = intent.getStringExtra("ERROR") ?: ""
+
+                    val obj = JSONObject().apply {
+                        put("status", status)
+                        put("fileName", fileName)
+                        put("fileSize", fileSize)
+                        put("bytesReceived", bytesReceived)
+                        put("filePath", filePath)
+                        put("error", error)
+                    }
+
+                    // Forward real-time incoming stream progress directly to WebView
+                    val jsCall = "javascript:if(window.onNativeReceiveStreamUpdate) { window.onNativeReceiveStreamUpdate(${obj}); }"
+                    webView.post { webView.evaluateJavascript(jsCall, null) }
                 }
             }
         }
@@ -122,6 +148,7 @@ class MainActivity : AppCompatActivity() {
             addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
             addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
             addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+            addAction("com.supershare.offline.STREAM_UPDATE")
         }
         registerReceiver(p2pReceiver, intentFilter)
     }
@@ -217,7 +244,6 @@ class MainActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
 
-                // Check Runtime Permissions
                 val hasLocation = ContextCompat.checkSelfPermission(
                     this@MainActivity,
                     Manifest.permission.ACCESS_FINE_LOCATION
@@ -240,26 +266,19 @@ class MainActivity : AppCompatActivity() {
 
                 wifiP2pManager?.discoverPeers(wifiP2pChannel, object : WifiP2pManager.ActionListener {
                     override fun onSuccess() {
-                        showToast("Wi-Fi Direct scanner active. Searching for peers...")
+                        showToast("Searching for nearby SuperShare devices...")
                     }
 
                     override fun onFailure(reason: Int) {
                         val message = when (reason) {
                             WifiP2pManager.P2P_UNSUPPORTED -> "Wi-Fi Direct is not supported on this device."
-                            WifiP2pManager.BUSY -> "Wi-Fi Direct is busy. Retrying in a moment..."
+                            WifiP2pManager.BUSY -> "Wi-Fi Direct is busy. Retrying..."
                             else -> "Wi-Fi Direct scan error (code $reason). Please toggle Wi-Fi."
                         }
                         showToast(message)
 
                         val jsCall = "javascript:if(window.onNativePeersError) { window.onNativePeersError(${reason}, '${message}'); }"
                         webView.post { webView.evaluateJavascript(jsCall, null) }
-
-                        // If busy, retry once automatically after 2 seconds
-                        if (reason == WifiP2pManager.BUSY) {
-                            webView.postDelayed({
-                                wifiP2pManager?.discoverPeers(wifiP2pChannel, null)
-                            }, 2000)
-                        }
                     }
                 })
             }
@@ -279,6 +298,55 @@ class MainActivity : AppCompatActivity() {
                     showToast("Connection failed (code: $reason)")
                 }
             })
+        }
+
+        @SuppressLint("MissingPermission")
+        @JavascriptInterface
+        fun startP2pReceiverMode(port: Int) {
+            runOnUiThread {
+                startReceiveService(port)
+
+                // Create Wi-Fi Direct Group so this device acts as Group Owner
+                wifiP2pManager?.createGroup(wifiP2pChannel, object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        showToast("Wi-Fi Direct Group created! Socket active on port $port")
+                    }
+                    override fun onFailure(reason: Int) {
+                        // Service is already listening on ServerSocket port
+                    }
+                })
+            }
+        }
+
+        @JavascriptInterface
+        fun sendFileViaSocket(receiverIp: String, port: Int, fileName: String, fileSize: Long) {
+            val uri = lastSelectedFileUri
+            if (uri == null) {
+                showToast("Please choose a file to send.")
+                return
+            }
+
+            showToast("Connecting to Receiver at $receiverIp:$port...")
+
+            CoroutineScope(Dispatchers.IO).launch {
+                SuperShareSender(
+                    context = this@MainActivity,
+                    onProgress = { name, sent, total, percent, speed ->
+                        val jsCall = "javascript:if(window.onNativeSenderProgress){ window.onNativeSenderProgress('${name}', ${sent}, ${total}, ${percent}, ${speed}); }"
+                        webView.post { webView.evaluateJavascript(jsCall, null) }
+                    },
+                    onCompleted = { name ->
+                        showToast("$name sent successfully!")
+                        val jsCall = "javascript:if(window.onNativeSenderCompleted){ window.onNativeSenderCompleted('${name}'); }"
+                        webView.post { webView.evaluateJavascript(jsCall, null) }
+                    },
+                    onError = { err ->
+                        showToast("Send error: $err")
+                        val jsCall = "javascript:if(window.onNativeSenderError){ window.onNativeSenderError('${err}'); }"
+                        webView.post { webView.evaluateJavascript(jsCall, null) }
+                    }
+                ).sendFile(receiverIp, port, uri, fileName, fileSize)
+            }
         }
 
         @JavascriptInterface

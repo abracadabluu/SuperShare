@@ -3,7 +3,7 @@
  * Real P2P 64 KB Chunked Stream Engine
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { MainActions } from './components/MainActions';
 import { SendModal, PeerConnectionTarget } from './components/SendModal';
@@ -33,10 +33,98 @@ export default function App() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [transferRole, setTransferRole] = useState<'sender' | 'receiver'>('sender');
 
-  const handleStartSendRealFile = async (file: File, _target?: PeerConnectionTarget) => {
+  useEffect(() => {
+    // 1. Listen for real-time incoming stream on Receiver phone
+    (window as any).onNativeReceiveStreamUpdate = (data: any) => {
+      setIsReceiveOpen(false); // Switch from QR code modal to live progress screen!
+      setTransferRole('receiver');
+
+      const totalSize = data.fileSize || 1;
+      const bytesRecv = data.bytesReceived || 0;
+      const percent = Math.min(100, Math.round((bytesRecv / totalSize) * 100));
+      const totalChunks = Math.ceil(totalSize / (settings.chunkSizeKb * 1024));
+      const chunksRecv = Math.ceil(bytesRecv / (settings.chunkSizeKb * 1024));
+
+      setActiveTransfer({
+        fileId: 'native_recv_' + (data.fileName || 'file'),
+        fileName: data.fileName || 'Receiving File...',
+        fileSize: totalSize,
+        transferredBytes: bytesRecv,
+        percentage: percent,
+        chunksTransferred: chunksRecv,
+        totalChunks,
+        speedBytesPerSec: 35 * 1024 * 1024,
+        estimatedSecondsRemaining: percent === 100 ? 0 : Math.max(1, Math.round((totalSize - bytesRecv) / (35 * 1024 * 1024))),
+        status: data.status === 'completed' ? 'completed' : data.status === 'error' ? 'error' : 'transferring',
+        wakeLockActive: true,
+      });
+
+      if (data.status === 'completed') {
+        setDownloadUrl(data.filePath || null);
+      }
+    };
+
+    // 2. Listen for native socket sender progress on Sender phone
+    (window as any).onNativeSenderProgress = (fileName: string, sentBytes: number, totalBytes: number, percent: number, speedMBps: number) => {
+      setTransferRole('sender');
+      const totalChunks = Math.ceil(totalBytes / (settings.chunkSizeKb * 1024));
+      const chunksSent = Math.ceil(sentBytes / (settings.chunkSizeKb * 1024));
+
+      setActiveTransfer({
+        fileId: 'native_send_' + fileName,
+        fileName,
+        fileSize: totalBytes,
+        transferredBytes: sentBytes,
+        percentage: percent,
+        chunksTransferred: chunksSent,
+        totalChunks,
+        speedBytesPerSec: (speedMBps || 35) * 1024 * 1024,
+        estimatedSecondsRemaining: percent === 100 ? 0 : Math.max(1, Math.round((totalBytes - sentBytes) / (((speedMBps || 35)) * 1024 * 1024))),
+        status: percent >= 100 ? 'completed' : 'transferring',
+        wakeLockActive: true,
+      });
+    };
+
+    (window as any).onNativeSenderCompleted = (fileName: string) => {
+      setActiveTransfer((prev) => prev ? { ...prev, percentage: 100, status: 'completed' } : null);
+    };
+
+    return () => {
+      delete (window as any).onNativeReceiveStreamUpdate;
+      delete (window as any).onNativeSenderProgress;
+      delete (window as any).onNativeSenderCompleted;
+    };
+  }, [settings.chunkSizeKb]);
+
+  const handleStartSendRealFile = async (file: File, target?: PeerConnectionTarget) => {
     setTransferRole('sender');
     setDownloadUrl(null);
 
+    const targetIp = target?.ip || '192.168.49.1';
+    const targetPort = target?.port || settings.tcpPort || 8888;
+
+    // Check if inside Android APK with native socket bridge
+    if (typeof (window as any).AndroidBridge?.sendFileViaSocket === 'function') {
+      const totalChunks = Math.ceil(file.size / (settings.chunkSizeKb * 1024));
+      setActiveTransfer({
+        fileId: 'native_send_' + file.name,
+        fileName: file.name,
+        fileSize: file.size,
+        transferredBytes: 0,
+        percentage: 0,
+        chunksTransferred: 0,
+        totalChunks,
+        speedBytesPerSec: 0,
+        estimatedSecondsRemaining: 1,
+        status: 'transferring',
+        wakeLockActive: settings.wakeLockEnabled,
+      });
+
+      (window as any).AndroidBridge.sendFileViaSocket(targetIp, targetPort, file.name, file.size);
+      return;
+    }
+
+    // Web / browser fallback
     await realP2p.startSender(file, (stats) => {
       setActiveTransfer({
         fileId: 'transfer_' + Date.now(),
