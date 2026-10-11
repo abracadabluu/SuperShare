@@ -1,5 +1,6 @@
 import React from 'react';
 import { Settings } from 'lucide-react';
+import { SuperShareIcon } from './SuperShareIcon';
 
 interface HeaderProps {
   onOpenSettings: () => void;
@@ -8,10 +9,13 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onOpenSettings }) => {
   return (
     <header className="w-full flex items-center justify-between px-6 py-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-30">
-      {/* Left: App Name only */}
-      <h1 className="text-xl font-bold tracking-tight text-white">
-        SuperShare
-      </h1>
+      {/* Left: App Vector Icon & Name */}
+      <div className="flex items-center gap-3">
+        <SuperShareIcon size={34} />
+        <h1 className="text-xl font-bold tracking-tight text-white">
+          SuperShare
+        </h1>
+      </div>
 
       {/* Right: Settings button only */}
       <button

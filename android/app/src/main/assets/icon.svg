@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c1222" />
+      <stop offset="100%" stop-color="#050811" />
+    </linearGradient>
+
+    <!-- Lightning S Gradient -->
+    <linearGradient id="lightningGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Container -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  <rect width="504" height="504" x="4" y="4" rx="124" fill="none" stroke="#1e293b" stroke-width="6" />
+
+  <!-- Lightning Bolt Styled as the Letter 'S' -->
+  <!-- Upper curve/arm of S flowing into sharp lightning strike, center zigzag, lower curve of S with sharp terminal -->
+  <g filter="url(#glow)">
+    <path
+      d="M 330 110 
+         C 330 110, 245 95, 195 135 
+         C 155 168, 165 215, 215 235 
+         L 315 270 
+         L 245 315 
+         L 345 310 
+         L 210 420 
+         C 210 420, 275 425, 320 385 
+         C 355 352, 345 315, 305 295 
+         L 205 260 
+         L 275 215 
+         L 175 220 
+         Z"
+      fill="url(#lightningGrad)"
+    />
+  </g>
+
+  <!-- Clean Precision Lightning Bolt 'S' Overlay -->
+  <path
+    d="M 320 120 
+       C 260 102, 205 130, 185 165 
+       C 168 196, 188 228, 225 242 
+       L 305 272 
+       L 230 320 
+       L 340 310 
+       L 190 425 
+       C 260 425, 325 390, 340 345 
+       C 352 308, 328 280, 290 265 
+       L 215 238 
+       L 290 190 
+       L 180 200 
+       Z"
+    fill="#ffffff"
+    opacity="0.95"
+  />
+
+  <!-- SuperShare Text Typography -->
+  <text
+    x="256"
+    y="468"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    font-size="44"
+    font-weight="900"
+    letter-spacing="2"
+    fill="#ffffff"
+  >
+    Super<tspan fill="#38bdf8">Share</tspan>
+  </text>
+</svg>

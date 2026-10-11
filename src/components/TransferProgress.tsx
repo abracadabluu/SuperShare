@@ -4,11 +4,19 @@ import { CheckCircle2, AlertCircle, ShieldAlert, Cpu, Activity, Clock, FileText,
 
 interface TransferProgressProps {
   progress: ITransferProgress;
+  downloadUrl?: string | null;
+  role?: 'sender' | 'receiver';
   onCancel: () => void;
   onDone: () => void;
 }
 
-export const TransferProgress: React.FC<TransferProgressProps> = ({ progress, onCancel, onDone }) => {
+export const TransferProgress: React.FC<TransferProgressProps> = ({
+  progress,
+  downloadUrl,
+  role = 'sender',
+  onCancel,
+  onDone,
+}) => {
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -139,22 +147,36 @@ export const TransferProgress: React.FC<TransferProgressProps> = ({ progress, on
         </div>
       </div>
 
-      {/* Bottom status note */}
-      <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+      {/* Bottom status note and download action */}
+      <div className="pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
         <span>
           {isCompleted
-            ? 'Transfer complete! Saved to SuperShare directory.'
-            : 'Streaming continuous raw byte chunks over TCP socket...'}
+            ? role === 'receiver'
+              ? 'File received! Tap below to save to device storage.'
+              : 'File streamed successfully to receiver over 64 KB chunks.'
+            : 'Streaming continuous raw byte chunks over P2P socket...'}
         </span>
 
-        {isCompleted && (
-          <button
-            onClick={onDone}
-            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition cursor-pointer"
-          >
-            Done
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isCompleted && downloadUrl && (
+            <a
+              href={downloadUrl}
+              download={progress.fileName}
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/30"
+            >
+              <span>Save File</span>
+            </a>
+          )}
+
+          {isCompleted && (
+            <button
+              onClick={onDone}
+              className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs transition cursor-pointer"
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 /**
  * SuperShare - Offline High-Speed Heavy File Transfer
- * Wi-Fi Direct (P2P) & 64 KB Chunked Stream Buffer Engine
+ * Real P2P 64 KB Chunked Stream Engine
  */
 
 import React, { useState } from 'react';
@@ -11,7 +11,7 @@ import { ReceiveModal } from './components/ReceiveModal';
 import { SettingsModal } from './components/SettingsModal';
 import { TransferProgress } from './components/TransferProgress';
 import { AppSettings, TransferProgress as ITransferProgress } from './types/transfer';
-import { globalEngine } from './services/transferEngine';
+import { realP2p } from './services/realP2pEngine';
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>({
@@ -30,42 +30,55 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [activeTransfer, setActiveTransfer] = useState<ITransferProgress | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [transferRole, setTransferRole] = useState<'sender' | 'receiver'>('sender');
 
-  const handleStartSend = (file: File | { name: string; size: number; type: string }) => {
-    globalEngine.streamFile(file, settings.chunkSizeKb, (progress) => {
-      setActiveTransfer(progress);
+  const handleStartSendRealFile = async (file: File) => {
+    setTransferRole('sender');
+    setDownloadUrl(null);
+
+    await realP2p.startSender(file, (stats) => {
+      setActiveTransfer({
+        fileId: 'transfer_' + Date.now(),
+        fileName: stats.fileName,
+        fileSize: stats.fileSize,
+        transferredBytes: stats.bytesTransferred,
+        percentage: stats.percentage,
+        chunksTransferred: stats.chunksTransferred,
+        totalChunks: stats.totalChunks,
+        speedBytesPerSec: stats.speedMBps * 1024 * 1024,
+        estimatedSecondsRemaining: stats.etaSeconds,
+        status: stats.status === 'completed' ? 'completed' : 'transferring',
+        wakeLockActive: settings.wakeLockEnabled,
+      });
     });
   };
 
-  const handleSimulateIncoming = (fileName: string, sizeBytes: number) => {
-    globalEngine.streamFile(
-      { name: fileName, size: sizeBytes, type: 'video/mp4' },
-      settings.chunkSizeKb,
-      (progress) => {
-        setActiveTransfer(progress);
-      }
-    );
-  };
-
   const handleCancelTransfer = () => {
-    globalEngine.cancelTransfer();
+    realP2p.cancel();
     setActiveTransfer(null);
+    setDownloadUrl(null);
   };
 
   return (
     <div className="min-h-screen bg-[#090D16] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Minimalist Top Header: Only App Name and Settings Button */}
+      {/* Minimalist Top Header: Vector Icon, App Name & Settings */}
       <Header onOpenSettings={() => setIsSettingsOpen(true)} />
 
       {/* Main Container */}
       <main className="flex-1 flex flex-col items-center justify-start p-4 max-w-3xl w-full mx-auto">
-        {/* Active Transfer Stream Tracker if currently transferring */}
+        {/* Active Real File Transfer Stream Tracker */}
         {activeTransfer && (
           <div className="w-full max-w-xl my-4">
             <TransferProgress
               progress={activeTransfer}
+              downloadUrl={downloadUrl}
+              role={transferRole}
               onCancel={handleCancelTransfer}
-              onDone={() => setActiveTransfer(null)}
+              onDone={() => {
+                setActiveTransfer(null);
+                setDownloadUrl(null);
+              }}
             />
           </div>
         )}
@@ -78,18 +91,17 @@ export default function App() {
         />
       </main>
 
-      {/* Modals */}
+      {/* Modals for Real File Operations */}
       <SendModal
         isOpen={isSendOpen}
         onClose={() => setIsSendOpen(false)}
-        onStartSend={handleStartSend}
+        onStartSendRealFile={handleStartSendRealFile}
         chunkSizeKb={settings.chunkSizeKb}
       />
 
       <ReceiveModal
         isOpen={isReceiveOpen}
         onClose={() => setIsReceiveOpen(false)}
-        onSimulateIncoming={handleSimulateIncoming}
         tcpPort={settings.tcpPort}
         chunkSizeKb={settings.chunkSizeKb}
         wakeLockEnabled={settings.wakeLockEnabled}
