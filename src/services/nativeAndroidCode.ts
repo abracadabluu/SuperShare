@@ -258,12 +258,13 @@ class SuperShareReceiverService : Service() {
 
                 // 2. Continuous 64 KB Chunked Buffer Stream directly to Storage
                 val buffer = ByteArray(BUFFER_SIZE)
+                var bytesRead = 0
                 var totalBytesReceived: Long = 0
                 var lastProgressUpdate = System.currentTimeMillis()
 
                 while (totalBytesReceived < totalFileSize) {
                     val toRead = Math.min(BUFFER_SIZE.toLong(), totalFileSize - totalBytesReceived).toInt()
-                    val bytesRead = inputStream.read(buffer, 0, toRead)
+                    bytesRead = inputStream.read(buffer, 0, toRead)
                     if (bytesRead == -1) break
                     fileOutputStream.write(buffer, 0, bytesRead)
                     totalBytesReceived += bytesRead
