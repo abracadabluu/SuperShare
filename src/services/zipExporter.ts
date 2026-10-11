@@ -26,8 +26,9 @@ export async function generateAndroidProjectZip(): Promise<Blob> {
   zip.file('settings.gradle.kts', SETTINGS_GRADLE_KTS);
   zip.file('.gitignore', `*.iml\n.gradle\n/local.properties\n/.idea/\n.DS_Store\n/build\n/captures\n.externalNativeBuild\n.cxx\nlocal.properties\n`);
 
-  // 3. Gradle wrapper
+  // 3. Gradle wrapper & Version Catalog
   zip.file('gradle/wrapper/gradle-wrapper.properties', GRADLE_WRAPPER_PROPERTIES);
+  zip.file('gradle/libs.versions.toml', `[versions]\nagp = "8.4.1"\nkotlin = "1.9.24"\ncoreKtx = "1.13.1"\nappcompat = "1.7.0"\nmaterial = "1.12.0"\ncoroutines = "1.8.1"\n\n[libraries]\nandroidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }\nandroidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }\nmaterial = { group = "com.google.android.material", name = "material", version.ref = "material" }\nkotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }\n\n[plugins]\nandroid-application = { id = "com.android.application", version.ref = "agp" }\nkotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }\n`);
   zip.file('gradlew', `#!/usr/bin/env sh\nexec gradle "$@"\n`);
   zip.file('gradlew.bat', `@rem Gradle startup script for Windows\ngradle %*\n`);
 
