@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Upload,
@@ -6,18 +6,23 @@ import {
   Camera,
   CheckCircle2,
   ArrowRight,
-  ShieldCheck,
   Radio,
-  Wifi,
   AlertCircle,
   Smartphone
 } from 'lucide-react';
 import { QrCameraScanner } from './QrCameraScanner';
 
+export interface PeerConnectionTarget {
+  ip: string;
+  port: number;
+  pin: string;
+  name?: string;
+}
+
 interface SendModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartSendRealFile: (file: File, receiverCode?: string) => void;
+  onStartSendRealFile: (file: File, target?: PeerConnectionTarget) => void;
   chunkSizeKb: number;
 }
 
@@ -28,14 +33,52 @@ export const SendModal: React.FC<SendModalProps> = ({
   chunkSizeKb,
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [receiverCode, setReceiverCode] = useState<string>('');
+  const [receiverPin, setReceiverPin] = useState<string>('');
   const [isCameraScannerOpen, setIsCameraScannerOpen] = useState<boolean>(false);
   const [isPeerConnected, setIsPeerConnected] = useState<boolean>(false);
-  const [connectedPeerName, setConnectedPeerName] = useState<string>('');
+  const [connectedPeerInfo, setConnectedPeerInfo] = useState<PeerConnectionTarget | null>(null);
+
   const [isScanningNearby, setIsScanningNearby] = useState<boolean>(false);
   const [discoveredDevices, setDiscoveredDevices] = useState<Array<{ id: string; name: string }>>([]);
+  const [scanStatusMessage, setScanStatusMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Listen for real Wi-Fi Direct peers discovered by Android native system
+    (window as any).onNativePeersFound = (peers: Array<{ id: string; name: string }>) => {
+      setIsScanningNearby(false);
+      if (peers && peers.length > 0) {
+        setDiscoveredDevices(peers);
+        setScanStatusMessage(null);
+      } else {
+        setDiscoveredDevices([]);
+        setScanStatusMessage('No Wi-Fi Direct devices detected nearby. Make sure Receiver phone is in Receive mode.');
+      }
+    };
+
+    (window as any).onNativePeersError = (reason: number) => {
+      setIsScanningNearby(false);
+      setScanStatusMessage(`Wi-Fi Direct scan failed (code: ${reason}). Make sure Wi-Fi is turned on.`);
+    };
+
+    (window as any).onNativeP2pConnected = (info: any) => {
+      const ownerIp = info.groupOwnerAddress || '192.168.49.1';
+      setIsPeerConnected(true);
+      setConnectedPeerInfo({
+        ip: ownerIp,
+        port: 8888,
+        pin: 'P2P-DIRECT',
+        name: 'Wi-Fi Direct Peer (' + ownerIp + ')',
+      });
+    };
+
+    return () => {
+      delete (window as any).onNativePeersFound;
+      delete (window as any).onNativePeersError;
+      delete (window as any).onNativeP2pConnected;
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -57,44 +100,80 @@ export const SendModal: React.FC<SendModalProps> = ({
     setIsCameraScannerOpen(false);
     try {
       const payload = JSON.parse(decodedText);
-      if (payload.app === 'SuperShare' || payload.pin) {
-        setReceiverCode(payload.pin || 'QR-CONNECTED');
+      if (payload.app === 'SuperShare' || payload.ip) {
+        const target: PeerConnectionTarget = {
+          ip: payload.ip || '192.168.49.1',
+          port: payload.port || 8888,
+          pin: payload.pin || '',
+          name: `Receiver Phone (${payload.ip || '192.168.49.1'}:${payload.port || 8888})`,
+        };
+        setConnectedPeerInfo(target);
         setIsPeerConnected(true);
-        setConnectedPeerName('SuperShare Receiver (Paired via QR)');
       } else {
+        // Fallback generic peer
+        const target: PeerConnectionTarget = {
+          ip: '192.168.49.1',
+          port: 8888,
+          pin: decodedText.slice(0, 6),
+          name: `Receiver (#${decodedText.slice(0, 6)})`,
+        };
+        setConnectedPeerInfo(target);
         setIsPeerConnected(true);
-        setConnectedPeerName('Receiver Device (Paired via QR)');
       }
     } catch (_e) {
+      const target: PeerConnectionTarget = {
+        ip: '192.168.49.1',
+        port: 8888,
+        pin: decodedText.slice(0, 6),
+        name: `Receiver (#${decodedText.slice(0, 6)})`,
+      };
+      setConnectedPeerInfo(target);
       setIsPeerConnected(true);
-      setConnectedPeerName('Receiver Device (Paired via QR)');
     }
   };
 
-  const handleConnectByCode = () => {
-    if (receiverCode.trim().length >= 4) {
+  const handleConnectByPin = () => {
+    if (receiverPin.trim().length >= 4) {
+      const target: PeerConnectionTarget = {
+        ip: '192.168.49.1',
+        port: 8888,
+        pin: receiverPin.trim(),
+        name: `Receiver (#${receiverPin.trim()})`,
+      };
+      setConnectedPeerInfo(target);
       setIsPeerConnected(true);
-      setConnectedPeerName(`Receiver Device (#${receiverCode.trim()})`);
     }
   };
 
   const handleDiscoverPeers = () => {
     setIsScanningNearby(true);
     setDiscoveredDevices([]);
+    setScanStatusMessage(null);
 
-    // Scan nearby Wi-Fi Direct peers
-    setTimeout(() => {
-      setDiscoveredDevices([
-        { id: 'p2p_dev_1', name: 'SuperShare Receiver Phone' },
-      ]);
-      setIsScanningNearby(false);
-    }, 1500);
+    // Call real Android native WifiP2pManager if inside APK
+    if (typeof (window as any).AndroidBridge?.discoverRealPeers === 'function') {
+      (window as any).AndroidBridge.discoverRealPeers();
+    } else {
+      // In web browser without native bridge: inform user
+      setTimeout(() => {
+        setIsScanningNearby(false);
+        setScanStatusMessage('Use "Scan Receiver QR Code" to pair devices directly.');
+      }, 1000);
+    }
   };
 
   const handleSelectDiscoveredDevice = (device: { id: string; name: string }) => {
-    setIsPeerConnected(true);
-    setConnectedPeerName(device.name);
-    setDiscoveredDevices([]);
+    if (typeof (window as any).AndroidBridge?.connectToPeer === 'function') {
+      (window as any).AndroidBridge.connectToPeer(device.id);
+    } else {
+      setIsPeerConnected(true);
+      setConnectedPeerInfo({
+        ip: '192.168.49.1',
+        port: 8888,
+        pin: 'P2P',
+        name: device.name,
+      });
+    }
   };
 
   const totalChunks = selectedFile
@@ -132,7 +211,7 @@ export const SendModal: React.FC<SendModalProps> = ({
                 {selectedFile && (
                   <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    File Selected
+                    File Ready
                   </span>
                 )}
               </div>
@@ -202,22 +281,24 @@ export const SendModal: React.FC<SendModalProps> = ({
                 </span>
               </div>
 
-              {isPeerConnected ? (
+              {isPeerConnected && connectedPeerInfo ? (
                 <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                       <CheckCircle2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-white">{connectedPeerName}</p>
-                      <p className="text-[11px] text-emerald-400">Ready to receive 64 KB byte chunks</p>
+                      <p className="text-xs font-bold text-white">{connectedPeerInfo.name}</p>
+                      <p className="text-[11px] text-emerald-400 font-mono">
+                        Target Socket: {connectedPeerInfo.ip}:{connectedPeerInfo.port}
+                      </p>
                     </div>
                   </div>
 
                   <button
                     onClick={() => {
                       setIsPeerConnected(false);
-                      setConnectedPeerName('');
+                      setConnectedPeerInfo(null);
                     }}
                     className="text-xs text-slate-400 hover:text-white"
                   >
@@ -236,24 +317,29 @@ export const SendModal: React.FC<SendModalProps> = ({
                     <span>Scan Receiver QR Code (Camera Viewfinder)</span>
                   </button>
 
-                  {/* Or Discover Nearby Devices Button */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDiscoverPeers}
-                      disabled={isScanningNearby}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-950/70 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs transition cursor-pointer"
-                    >
-                      <Radio className={`w-4 h-4 text-emerald-400 ${isScanningNearby ? 'animate-spin' : ''}`} />
-                      <span>{isScanningNearby ? 'Scanning Nearby...' : 'Scan Nearby Devices'}</span>
-                    </button>
-                  </div>
+                  {/* Real Wi-Fi Direct Nearby Device Scan */}
+                  <button
+                    type="button"
+                    onClick={handleDiscoverPeers}
+                    disabled={isScanningNearby}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-950/70 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs transition cursor-pointer"
+                  >
+                    <Radio className={`w-4 h-4 text-emerald-400 ${isScanningNearby ? 'animate-spin' : ''}`} />
+                    <span>{isScanningNearby ? 'Scanning Wi-Fi Direct Devices...' : 'Scan Nearby Devices (Wi-Fi Direct)'}</span>
+                  </button>
 
-                  {/* Discovered Devices List */}
+                  {/* Scan Status message if no devices */}
+                  {scanStatusMessage && (
+                    <p className="text-[11px] text-slate-400 text-center px-2">
+                      {scanStatusMessage}
+                    </p>
+                  )}
+
+                  {/* Real Discovered Devices List */}
                   {discoveredDevices.length > 0 && (
                     <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-2">
                       <span className="text-[11px] font-bold text-slate-400 block">
-                        Nearby SuperShare Devices Found:
+                        Nearby Wi-Fi Direct Devices Found:
                       </span>
                       {discoveredDevices.map((dev) => (
                         <div
@@ -265,28 +351,28 @@ export const SendModal: React.FC<SendModalProps> = ({
                             <Smartphone className="w-4 h-4 text-blue-400" />
                             <span className="text-xs font-semibold text-white">{dev.name}</span>
                           </div>
-                          <span className="text-[11px] font-bold text-blue-400">Connect</span>
+                          <span className="text-[11px] font-bold text-blue-400">Pair & Connect</span>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Or Manual 6-Digit PIN Entry */}
+                  {/* PIN Code Input */}
                   <div className="p-3 bg-slate-950/60 rounded-2xl border border-slate-800/80 flex items-center gap-2">
                     <input
                       type="text"
-                      placeholder="Or enter 6-digit PIN"
-                      value={receiverCode}
-                      onChange={(e) => setReceiverCode(e.target.value)}
+                      placeholder="Or enter Receiver PIN code"
+                      value={receiverPin}
+                      onChange={(e) => setReceiverPin(e.target.value)}
                       className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-mono"
                       maxLength={6}
                     />
                     <button
                       type="button"
-                      onClick={handleConnectByCode}
-                      disabled={receiverCode.trim().length < 4}
+                      onClick={handleConnectByPin}
+                      disabled={receiverPin.trim().length < 4}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                        receiverCode.trim().length >= 4
+                        receiverPin.trim().length >= 4
                           ? 'bg-blue-600 text-white cursor-pointer'
                           : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                       }`}
@@ -300,10 +386,10 @@ export const SendModal: React.FC<SendModalProps> = ({
 
             {/* Connection Safety Note */}
             {!isPeerConnected && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+              <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-400" />
                 <span>
-                  Receiver device se connect hona zaroori hai taaki actual bytes stream ho sakein.
+                  Receiver ke QR code ko scan karein ya 6-digit PIN enter karke connect karein.
                 </span>
               </div>
             )}
@@ -321,8 +407,8 @@ export const SendModal: React.FC<SendModalProps> = ({
             <button
               disabled={!selectedFile || !isPeerConnected}
               onClick={() => {
-                if (selectedFile && isPeerConnected) {
-                  onStartSendRealFile(selectedFile, receiverCode);
+                if (selectedFile && isPeerConnected && connectedPeerInfo) {
+                  onStartSendRealFile(selectedFile, connectedPeerInfo);
                   onClose();
                 }
               }}

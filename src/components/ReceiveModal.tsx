@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Wifi, ShieldCheck, Cpu, HardDrive, Radio, QrCode } from 'lucide-react';
+import { X, ShieldCheck, Cpu, Radio, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
+import { realP2p } from '../services/realP2pEngine';
 
 interface ReceiveModalProps {
   isOpen: boolean;
@@ -19,33 +20,64 @@ export const ReceiveModal: React.FC<ReceiveModalProps> = ({
 }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [pinCode, setPinCode] = useState<string>('582419');
+  const [localIp, setLocalIp] = useState<string>('192.168.49.1');
 
   useEffect(() => {
     if (isOpen) {
-      // Generate random 6-digit PIN for pairing
+      // 1. Get real IP address from Android native bridge or fallback to standard Wi-Fi Direct IP
+      let ip = '192.168.49.1';
+      if (typeof (window as any).AndroidBridge?.getLocalIpAddress === 'function') {
+        ip = (window as any).AndroidBridge.getLocalIpAddress() || '192.168.49.1';
+      }
+      setLocalIp(ip);
+
+      // 2. Start Android background receiver socket service if inside APK
+      if (typeof (window as any).AndroidBridge?.startReceiveService === 'function') {
+        (window as any).AndroidBridge.startReceiveService(tcpPort);
+      }
+
+      // 3. Acquire WakeLock
+      if (wakeLockEnabled) {
+        if (typeof (window as any).AndroidBridge?.acquireWakeLock === 'function') {
+          (window as any).AndroidBridge.acquireWakeLock();
+        } else {
+          realP2p.acquireWakeLock();
+        }
+      }
+
+      // 4. Generate random 6-digit PIN
       const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
       setPinCode(randomPin);
 
-      // Real P2P payload
+      // 5. Build REAL Connection QR Payload containing actual IP, Port & PIN
       const p2pPayload = JSON.stringify({
         app: 'SuperShare',
         action: 'receive_ready',
-        pin: randomPin,
+        ip,
         port: tcpPort,
+        pin: randomPin,
         chunkSize: chunkSizeKb,
         timestamp: Date.now(),
       });
 
       QRCode.toDataURL(p2pPayload, {
-        width: 240,
+        width: 260,
         margin: 1,
         color: {
-          dark: '#0f172a',
+          dark: '#020617',
           light: '#ffffff',
         },
-      }).then(setQrCodeUrl).catch(console.error);
+      })
+        .then(setQrCodeUrl)
+        .catch(console.error);
+    } else {
+      // Cleanup WakeLock when modal closes
+      if (typeof (window as any).AndroidBridge?.releaseWakeLock === 'function') {
+        (window as any).AndroidBridge.releaseWakeLock();
+      }
+      realP2p.releaseWakeLock();
     }
-  }, [isOpen, tcpPort, chunkSizeKb]);
+  }, [isOpen, tcpPort, chunkSizeKb, wakeLockEnabled]);
 
   if (!isOpen) return null;
 
@@ -59,9 +91,9 @@ export const ReceiveModal: React.FC<ReceiveModalProps> = ({
               <Radio className="w-4 h-4 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Receive Mode Ready</h3>
+              <h3 className="text-lg font-bold text-white">Receive Mode Active</h3>
               <p className="text-xs text-slate-400">
-                P2P Offline Listener • Port {tcpPort}
+                P2P Offline Listener • Socket Port {tcpPort}
               </p>
             </div>
           </div>
@@ -90,14 +122,14 @@ export const ReceiveModal: React.FC<ReceiveModalProps> = ({
             )}
             <p className="mt-2 text-[11px] font-semibold text-slate-700 tracking-wide flex items-center gap-1">
               <QrCode className="w-3.5 h-3.5" />
-              Scan on Sender phone to pair
+              Scan on Sender phone camera
             </p>
           </div>
 
-          {/* 6-Digit PIN Pairing Alternative */}
+          {/* 6-Digit PIN & IP Pairing Alternative */}
           <div className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl p-4">
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1">
-              Or Enter 6-Digit Code on Sender Phone
+              Receiver Pairing Code
             </span>
             <div className="flex items-center justify-center gap-2 font-mono text-2xl font-extrabold text-emerald-400 tracking-widest my-1">
               <span>{pinCode.slice(0, 3)}</span>
@@ -105,7 +137,7 @@ export const ReceiveModal: React.FC<ReceiveModalProps> = ({
               <span>{pinCode.slice(3, 6)}</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Sender will stream real files directly in {chunkSizeKb} KB slices.
+              IP: <span className="text-slate-200 font-mono">{localIp}</span> • Port: <span className="text-slate-200 font-mono">{tcpPort}</span>
             </p>
           </div>
 

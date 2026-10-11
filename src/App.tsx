@@ -6,11 +6,10 @@
 import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { MainActions } from './components/MainActions';
-import { SendModal } from './components/SendModal';
+import { SendModal, PeerConnectionTarget } from './components/SendModal';
 import { ReceiveModal } from './components/ReceiveModal';
 import { SettingsModal } from './components/SettingsModal';
 import { TransferProgress } from './components/TransferProgress';
-import { WifiStatusAlert } from './components/WifiStatusAlert';
 import { AppSettings, TransferProgress as ITransferProgress } from './types/transfer';
 import { realP2p } from './services/realP2pEngine';
 
@@ -34,7 +33,7 @@ export default function App() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [transferRole, setTransferRole] = useState<'sender' | 'receiver'>('sender');
 
-  const handleStartSendRealFile = async (file: File) => {
+  const handleStartSendRealFile = async (file: File, _target?: PeerConnectionTarget) => {
     setTransferRole('sender');
     setDownloadUrl(null);
 
@@ -83,9 +82,6 @@ export default function App() {
             />
           </div>
         )}
-
-        {/* Wi-Fi Hardware Status Guidance */}
-        <WifiStatusAlert />
 
         {/* Homepage Large Send and Receive Buttons + Technical Pills */}
         <MainActions
