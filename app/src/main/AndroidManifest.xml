@@ -10,24 +10,25 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
-    <!-- Wi-Fi Direct on Android 13+ -->
+    <!-- Wi-Fi Direct on Android 13+ (API 33+) -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"
         tools:targetApi="tiramisu" />
 
-    <!-- Location for P2P Discovery on older Android -->
+    <!-- Location for P2P Discovery on older Android versions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- WakeLock & Foreground Service -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:targetApi="upside_down_cake" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
         android:label="SuperShare"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Theme.SuperShare">
 
         <activity
             android:name=".MainActivity"
@@ -41,7 +42,9 @@
         <service
             android:name=".service.SuperShareReceiverService"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            tools:targetApi="q" />
 
     </application>
 </manifest>

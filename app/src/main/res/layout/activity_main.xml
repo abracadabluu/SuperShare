@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#090D16"
+    android:padding="20dp">
+
+    <!-- Minimalist Header: Left App Name, Right Settings -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="32dp">
+
+        <TextView
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SuperShare"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_manage"
+            android:tint="#A0AEC0"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:contentDescription="Settings" />
+    </RelativeLayout>
+
+    <!-- Subtitle Banner -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Direct Device-to-Device Sharing"
+        android:textColor="#718096"
+        android:textSize="14sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Main Large Buttons Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- Large SEND Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSend"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:text="SEND"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#3B82F6"
+            app:cornerRadius="24dp"
+            android:elevation="6dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Large RECEIVE Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnReceive"
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:text="RECEIVE"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#10B981"
+            app:cornerRadius="24dp"
+            android:elevation="6dp" />
+    </LinearLayout>
+
+</LinearLayout>
