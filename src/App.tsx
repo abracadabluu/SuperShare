@@ -10,6 +10,7 @@ import { SendModal } from './components/SendModal';
 import { ReceiveModal } from './components/ReceiveModal';
 import { SettingsModal } from './components/SettingsModal';
 import { TransferProgress } from './components/TransferProgress';
+import { WifiStatusAlert } from './components/WifiStatusAlert';
 import { AppSettings, TransferProgress as ITransferProgress } from './types/transfer';
 import { realP2p } from './services/realP2pEngine';
 
@@ -82,6 +83,9 @@ export default function App() {
             />
           </div>
         )}
+
+        {/* Wi-Fi Hardware Status Guidance */}
+        <WifiStatusAlert />
 
         {/* Homepage Large Send and Receive Buttons + Technical Pills */}
         <MainActions

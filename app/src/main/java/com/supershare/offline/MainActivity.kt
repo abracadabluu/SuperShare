@@ -77,6 +77,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                try {
+                    request?.grant(request.resources)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             override fun onShowFileChooser(
                 view: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -99,6 +107,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class AndroidNativeBridge(private val context: Context) {
+
+        @JavascriptInterface
+        fun isWifiHardwareOn(): Boolean {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            return wifiManager?.isWifiEnabled ?: true
+        }
 
         @JavascriptInterface
         fun acquireWakeLock() {
@@ -152,6 +166,7 @@ class MainActivity : AppCompatActivity() {
     private fun checkPermissionsSafely() {
         try {
             val permissions = mutableListOf<String>()
+            permissions.add(Manifest.permission.CAMERA)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
                 permissions.add(Manifest.permission.POST_NOTIFICATIONS)
